@@ -73,13 +73,17 @@ plt.subplots_adjust(bottom=0.35)
 # Axes for TextBoxes
 ax_text_xmin = plt.axes([0.15, 0.26, 0.15, 0.04])
 ax_text_xmax = plt.axes([0.35, 0.26, 0.15, 0.04])
-ax_text_y1max = plt.axes([0.15, 0.18, 0.15, 0.04])
-ax_text_y2max = plt.axes([0.15, 0.10, 0.15, 0.04])
+ax_text_y1min= plt.axes([0.15, 0.18, 0.15, 0.04])
+ax_text_y1max = plt.axes([0.35, 0.18, 0.15, 0.04])
+ax_text_y2min= plt.axes([0.15, 0.10, 0.15, 0.04])
+ax_text_y2max = plt.axes([0.35, 0.10, 0.15, 0.04])
 
 # Create TextBoxes
 text_xmin = TextBox(ax_text_xmin, 'X Min (s)', initial=str(min(data['T'])))
 text_xmax = TextBox(ax_text_xmax, 'X Max (s)', initial=str(max(data['T'])))
+text_y1min = TextBox(ax_text_y1max, 'Temp Y Min', initial=str(min(data['T1R'])))
 text_y1max = TextBox(ax_text_y1max, 'Temp Y Max', initial=str(max(data['T1R'])))
+text_y2min = TextBox(ax_text_y2max, 'Pressure Y Min', initial=str(min(data['P2'])))
 text_y2max = TextBox(ax_text_y2max, 'Pressure Y Max', initial=str(max(data['P1'])))
 
 # --- Update function for text input ---
@@ -88,7 +92,9 @@ def update_axes(_):
         # Read and convert input values
         xmin = float(text_xmin.text)
         xmax = float(text_xmax.text)
+        y1min= float(text_y1min.text)
         y1max = float(text_y1max.text)
+        y2min= float(text_y2min.text)
         y2max = float(text_y2max.text)
 
         # Set x-axis limits for both plots
