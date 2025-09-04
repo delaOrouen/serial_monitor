@@ -81,8 +81,6 @@ def setup_gui():
     text_widget = ScrolledText(gui_root, wrap=tk.WORD, height=20, width=180)
     text_widget.pack(padx=10, pady=10)
 
-    # Run the GUI in a separate thread so it doesn't block matplotlib
-    threading.Thread(target=gui_root.mainloop, daemon=True).start()
 
 def append_to_gui(line):
     if text_widget:
@@ -209,12 +207,12 @@ def update_plot(frame):
 
             ax1.plot(time_index, t1r_list, label="T1R", color='red')
             ax1.plot(time_index, t2r_list, label="T2R", color='orange')
-            ax1.set_ylabel("Temperature (ﾂｰC)")
+            ax1.set_ylabel("Temperature (C)")
             ax1.legend()
             ax1.grid(True)
 
-            ax2.plot(time_index, p1_list, label="P1", color='blue')
-            ax2.plot(time_index, p2_list, label="P2", color='green')
+            ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
+            ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
             ax2.set_ylabel("Pressure")
             ax2.set_xlabel("Time")
             ax2.legend()
@@ -237,7 +235,7 @@ def signal_handler(sig, frame):
 
 # Set up the figure
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
-ani = animation.FuncAnimation(fig, update_plot, interval=200)
+ani = animation.FuncAnimation(fig, update_plot, interval=200, cache_frame_data=False)
 plt.tight_layout()
 setup_gui()
 signal.signal(signal.SIGINT, signal_handler)
