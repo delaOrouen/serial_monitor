@@ -1,114 +1,244 @@
-import sys
+import signal
+import serial
+import serial.tools.list_ports
 import csv
+import os
+import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
+from datetime import datetime
 import matplotlib.pyplot as plt
-from matplotlib.widgets import TextBox
+import matplotlib.animation as animation
+import threading
 
-# --- Handle command-line argument ---
-if len(sys.argv) < 2:
-    print("Error: No CSV file provided.\nUsage: python plot_data.py <file.csv>")
-    sys.exit(1)
+# Global serial object
+ser = None
+gui_root = None
+text_widget = None
+exit_event = threading.Event()
 
-csv_file = sys.argv[1]
+# Plotting config
+time_index = []
+t1r_list = []
+t2r_list = []
+p1_list = []
+p2_list = []
+MAX_POINTS = 500  # Number of points to show on graph
 
-# --- Keys to extract ---
-keys_of_interest = ['T', 'T1R', 'T2R', 'P1', 'P2']
+# Get filename from user
+def get_filename():
+    filename = input("Enter filename to save data (without extension): ").strip()
+    if not filename:
+        print("Invalid filename. Using default: data_log.csv")
+        return "data_log.csv"
+    if not filename.endswith(".csv"):
+        filename += ".csv"
+    return filename
 
-# --- Parse the CSV file ---
-def parse_csv(filename):
-    data = {key: [] for key in keys_of_interest}
+# List and choose serial port
+def select_serial_port():
+    ports = list(serial.tools.list_ports.comports())
+    if not ports:
+        print("No serial ports found.")
+        exit(1)
+
+    print("\nAvailable serial ports:")
+    for i, port in enumerate(ports):
+        print(f"{i+1}: {port.device} ({port.description})")
+
+    while True:
+        try:
+            choice = int(input("Select a port by number: ")) - 1
+            if 0 <= choice < len(ports):
+                return ports[choice].device
+            else:
+                print("Invalid choice. Try again.")
+        except ValueError:
+            print("Enter a valid number.")
+
+def serial_writer():
+    global ser
+    print("You can now type commands to send over serial. Type 'exit' to stop sending.")
+    while not exit_event.is_set():
+        try:
+            user_input = input()
+            if user_input.strip().lower() == 'exit':
+                print("Exit command received. Stopping program...")
+                exit_event.set()
+                break
+            if ser and ser.is_open:
+                ser.write((user_input + '\n').encode('utf-8'))
+        except Exception as e:
+            print(f"Error writing to serial: {e}")
+            break
+
+
+def setup_gui():
+    global gui_root, text_widget
+
+    gui_root = tk.Tk()
+    gui_root.title("Serial Monitor Output")
+
+    text_widget = ScrolledText(gui_root, wrap=tk.WORD, height=20, width=180)
+    text_widget.pack(padx=10, pady=10)
+
+    # Run the GUI in a separate thread so it doesn't block matplotlib
+    threading.Thread(target=gui_root.mainloop, daemon=True).start()
+
+def append_to_gui(line):
+    if text_widget:
+        text_widget.insert(tk.END, line + '\n')
+        text_widget.see(tk.END)
+
+def exit_cleanly():
+    global exit_program
+    exit_program = True
     try:
-        with open(filename, 'r') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                row = row[1:]  # Skip the first item
-                row_dict = dict(zip(row[::2], row[1::2]))
-                for key in keys_of_interest:
-                    value = row_dict.get(key)
-                    if value is not None:
-                        try:
-                            data[key].append(float(value))
-                        except ValueError:
-                            data[key].append(None)
-        return data
-    except FileNotFoundError:
-        print(f"Error: File '{filename}' not found.")
-        sys.exit(1)
-
-data = parse_csv(csv_file)
-
-# --- Check data validity ---
-if not data['T']:
-    print("Error: No 'T' (time) data found in the CSV. Check the CSV format.")
-    sys.exit(1)
-
-# --- Convert T from ms to seconds ---
-data['T'] = [t / 1000.0 for t in data['T']]
-
-# --- Plotting ---
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-
-# Plot T1R and T2R
-line1, = ax1.plot(data['T'], data['T1R'], label='T1R', color='red')
-line2, = ax1.plot(data['T'], data['T2R'], label='T2R', color='orange')
-ax1.set_title('T1R & T2R')
-ax1.set_xlabel('Time (s)')
-ax1.set_ylabel('Degrees C')
-ax1.legend()
-ax1.grid(True)
-
-# Plot P1 and P2
-line3, = ax2.plot(data['T'], data['P1'], label='P1', color='blue')
-line4, = ax2.plot(data['T'], data['P2'], label='P2', color='green')
-ax2.set_title('P1 & P2')
-ax2.set_xlabel('Time (s)')
-ax2.set_ylabel('Pressure MPa')
-ax2.legend()
-ax2.grid(True)
-
-# --- Adjust layout for text boxes ---
-plt.subplots_adjust(bottom=0.35)
-
-# --- TextBox Widgets for Axis Limits ---
-
-# Axes for TextBoxes
-ax_text_xmin = plt.axes([0.15, 0.26, 0.15, 0.04])
-ax_text_xmax = plt.axes([0.35, 0.26, 0.15, 0.04])
-ax_text_y1max = plt.axes([0.15, 0.18, 0.15, 0.04])
-ax_text_y2max = plt.axes([0.15, 0.10, 0.15, 0.04])
-
-# Create TextBoxes
-text_xmin = TextBox(ax_text_xmin, 'X Min (s)', initial=str(min(data['T'])))
-text_xmax = TextBox(ax_text_xmax, 'X Max (s)', initial=str(max(data['T'])))
-text_y1max = TextBox(ax_text_y1max, 'Temp Y Max', initial=str(max(data['T1R'])))
-text_y2max = TextBox(ax_text_y2max, 'Pressure Y Max', initial=str(max(data['P1'])))
-
-# --- Update function for text input ---
-def update_axes(_):
+        if ser and ser.is_open:
+            ser.close()
+            print("Serial port closed.")
+    except Exception as e:
+        print(f"Error closing serial port: {e}")
+    
+    # Close the tkinter GUI if it's open
     try:
-        # Read and convert input values
-        xmin = float(text_xmin.text)
-        xmax = float(text_xmax.text)
-        y1max = float(text_y1max.text)
-        y2max = float(text_y2max.text)
+        if gui_root:
+            gui_root.quit()
+            gui_root.destroy()
+            print("GUI closed.")
+    except:
+        pass
 
-        # Set x-axis limits for both plots
-        ax1.set_xlim(xmin, xmax)
-        ax2.set_xlim(xmin, xmax)
+    # Exit the entire program forcefully
+    os._exit(0)
 
-        # Set y-axis limits (min remains fixed to data min)
-        ax1.set_ylim(min(data['T1R']), y1max)
-        ax2.set_ylim(min(data['P1']), y2max)
+def get_serial_lines(port, baudrate=115200):
+    global ser
+    ser = serial.Serial(port, baudrate, timeout=1)
+    print(f"Connected to {port} at {baudrate} baud.")
 
-        fig.canvas.draw_idle()
+    # Start writer thread
+    threading.Thread(target=serial_writer, daemon=True).start()
 
-    except ValueError:
-        print("Invalid input. Please enter valid numeric values.")
+    while not exit_event.is_set():
+        try:
+            if ser.in_waiting:
+                line = ser.readline().decode('utf-8').strip()
+                if line:
+                    yield line
+        except Exception as e:
+            print(f"Serial error: {e}")
+            break
 
-# --- Connect TextBoxes to update function ---
-text_xmin.on_submit(update_axes)
-text_xmax.on_submit(update_axes)
-text_y1max.on_submit(update_axes)
-text_y2max.on_submit(update_axes)
 
-# --- Show the plot ---
+def save_raw_line_to_csv(line, filename):
+    parts = [p.strip() for p in line.split(',')]
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # millisecond precision
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp] + parts)
+
+
+# Extract specific fields to plot
+def parse_line(line):
+    try:
+        parts = [p.strip() for p in line.split(',')]
+        data = {}
+        i = 0
+        while i < len(parts) - 1:
+            key = parts[i]
+            try:
+                value = float(parts[i + 1])
+                data[key] = value
+                i += 2
+            except ValueError:
+                i += 1  # skip malformed
+        return {
+            "T1R": data.get("T1R"),
+            "T2R": data.get("T2R"),
+            "P1": data.get("P1"),
+            "P2": data.get("P2"),
+        }
+    except Exception as e:
+        print(f"Parse error: {e}")
+        return None
+
+def update_plot(frame):
+    if exit_event.is_set():
+        plt.close(fig)
+        exit_cleanly()
+        return
+
+    if not hasattr(update_plot, "data_gen"):
+        port = select_serial_port()
+        filename = get_filename()
+        update_plot.filename = filename
+        update_plot.data_gen = get_serial_lines(port)
+
+        # Create file if it doesn't exist, and write header
+        if not os.path.exists(filename):
+            with open(filename, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Timestamp", "Raw Data..."])  # Optional header
+
+    try:
+        line = next(update_plot.data_gen)
+        append_to_gui(line)
+
+        save_raw_line_to_csv(line, update_plot.filename)
+
+        # Parse values to plot
+        parsed = parse_line(line)
+        if parsed:
+            now = datetime.now()
+            time_index.append(now)
+            t1r_list.append(parsed["T1R"])
+            t2r_list.append(parsed["T2R"])
+            p1_list.append(parsed["P1"])
+            p2_list.append(parsed["P2"])
+
+            # Trim lists
+            time_index[:] = time_index[-MAX_POINTS:]
+            t1r_list[:] = t1r_list[-MAX_POINTS:]
+            t2r_list[:] = t2r_list[-MAX_POINTS:]
+            p1_list[:] = p1_list[-MAX_POINTS:]
+            p2_list[:] = p2_list[-MAX_POINTS:]
+
+            # Plotting
+            ax1.clear()
+            ax2.clear()
+
+            ax1.plot(time_index, t1r_list, label="T1R", color='red')
+            ax1.plot(time_index, t2r_list, label="T2R", color='orange')
+            ax1.set_ylabel("Temperature (ﾂｰC)")
+            ax1.legend()
+            ax1.grid(True)
+
+            ax2.plot(time_index, p1_list, label="P1", color='blue')
+            ax2.plot(time_index, p2_list, label="P2", color='green')
+            ax2.set_ylabel("Pressure")
+            ax2.set_xlabel("Time")
+            ax2.legend()
+            ax2.grid(True)
+
+            for ax in (ax1, ax2):
+                ax.tick_params(axis='x', rotation=45)
+
+    except StopIteration:
+        print("No more data.")
+    except Exception as e:
+        print(f"Update error: {e}")
+        if ser and ser.is_open:
+            ser.close()
+
+def signal_handler(sig, frame):
+    print("Keyboard interrupt received. Exiting...")
+    exit_event.set()
+    exit_cleanly()
+
+# Set up the figure
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+ani = animation.FuncAnimation(fig, update_plot, interval=200)
+plt.tight_layout()
+setup_gui()
+signal.signal(signal.SIGINT, signal_handler)
 plt.show()
