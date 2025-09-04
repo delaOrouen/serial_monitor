@@ -55,22 +55,6 @@ def select_serial_port():
         except ValueError:
             print("Enter a valid number.")
 
-def serial_writer():
-    global ser
-    print("You can now type commands to send over serial. Type 'exit' to stop sending.")
-    while not exit_event.is_set():
-        try:
-            user_input = input()
-            if user_input.strip().lower() == 'exit':
-                print("Exit command received. Stopping program...")
-                exit_event.set()
-                break
-            if ser and ser.is_open:
-                ser.write((user_input + '\n').encode('utf-8'))
-        except Exception as e:
-            print(f"Error writing to serial: {e}")
-            break
-
 
 def setup_gui():
     global gui_root, text_widget
@@ -78,8 +62,35 @@ def setup_gui():
     gui_root = tk.Tk()
     gui_root.title("Serial Monitor Output")
 
+    # Text area to show serial output
     text_widget = ScrolledText(gui_root, wrap=tk.WORD, height=20, width=180)
     text_widget.pack(padx=10, pady=10)
+
+    # --- New: Command entry and send button ---
+    command_frame = tk.Frame(gui_root)
+    command_frame.pack(padx=10, pady=(0, 10))
+
+    command_label = tk.Label(command_frame, text="Send Command:")
+    command_label.pack(side=tk.LEFT)
+
+    command_entry = tk.Entry(command_frame, width=60)
+    command_entry.pack(side=tk.LEFT, padx=(5, 5))
+
+    def send_command():
+        command = command_entry.get().strip()
+        if command:
+            if ser and ser.is_open:
+                try:
+                    ser.write((command + '\n').encode('utf-8'))
+                    append_to_gui(f">>> {command}")  # Show command in output area
+                except Exception as e:
+                    append_to_gui(f"Error sending command: {e}")
+            else:
+                append_to_gui("Serial port not open.")
+            command_entry.delete(0, tk.END)  # Clear entry after sending
+
+    send_button = tk.Button(command_frame, text="Send", command=send_command)
+    send_button.pack(side=tk.LEFT)
 
 
 def append_to_gui(line):
@@ -115,7 +126,6 @@ def get_serial_lines(port, baudrate=115200):
     print(f"Connected to {port} at {baudrate} baud.")
 
     # Start writer thread
-    threading.Thread(target=serial_writer, daemon=True).start()
 
     while not exit_event.is_set():
         try:
