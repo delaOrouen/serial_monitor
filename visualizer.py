@@ -22,6 +22,8 @@ t1r_list = []
 t2r_list = []
 p1_list = []
 p2_list = []
+IgR_list = []
+SR_list = []
 MAX_POINTS = 500  # Number of points to show on graph
 
 # Get filename from user
@@ -91,6 +93,7 @@ def setup_gui():
 
     send_button = tk.Button(command_frame, text="Send", command=send_command)
     send_button.pack(side=tk.LEFT)
+    command_entry.bind("<Return>", lambda event: send_command())
 
 
 def append_to_gui(line):
@@ -165,6 +168,8 @@ def parse_line(line):
             "T2R": data.get("T2R"),
             "P1": data.get("P1"),
             "P2": data.get("P2"),
+            "IgR": data.get("IgR"),
+            "SR": data.get("SR"),
         }
     except Exception as e:
         print(f"Parse error: {e}")
@@ -203,6 +208,8 @@ def update_plot(frame):
             t2r_list.append(parsed["T2R"])
             p1_list.append(parsed["P1"])
             p2_list.append(parsed["P2"])
+            IgR_list.append(parsed["IgR"])
+            SR_list.append((-144+parsed["SR"])/6)
 
             # Trim lists
             time_index[:] = time_index[-MAX_POINTS:]
@@ -210,6 +217,8 @@ def update_plot(frame):
             t2r_list[:] = t2r_list[-MAX_POINTS:]
             p1_list[:] = p1_list[-MAX_POINTS:]
             p2_list[:] = p2_list[-MAX_POINTS:]
+            IgR_list[:] = IgR_list[-MAX_POINTS:]
+            SR_list[:] = SR_list[-MAX_POINTS:]
 
             # Plotting
             ax1.clear()
@@ -223,6 +232,8 @@ def update_plot(frame):
 
             ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
             ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
+            ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
+            ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
             ax2.set_ylabel("Pressure")
             ax2.set_xlabel("Time")
             ax2.legend()
