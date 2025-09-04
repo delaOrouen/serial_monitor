@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 
 Y1_MIN = 18 # Degrees C
-Y1_MAX = 42 # Degrees C
+Y1_MAX = 40.5 # Degrees C
 Y2_MIN = -0.5 # Degrees C
 Y2_MAX = 8 # Degrees C
 
