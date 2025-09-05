@@ -1,3 +1,4 @@
+import time
 import signal
 import serial
 import serial.tools.list_ports
@@ -57,18 +58,15 @@ def select_serial_port():
         except ValueError:
             print("Enter a valid number.")
 
-
 def setup_gui():
     global gui_root, text_widget
 
     gui_root = tk.Tk()
     gui_root.title("Serial Monitor Output")
 
-    # Text area to show serial output
     text_widget = ScrolledText(gui_root, wrap=tk.WORD, height=20, width=180)
     text_widget.pack(padx=10, pady=10)
 
-    # --- New: Command entry and send button ---
     command_frame = tk.Frame(gui_root)
     command_frame.pack(padx=10, pady=(0, 10))
 
@@ -81,20 +79,21 @@ def setup_gui():
     def send_command():
         command = command_entry.get().strip()
         if command:
-            if ser and ser.is_open:
+            if ser is None:
+                append_to_gui("Error: Serial port has not been initialized yet.")
+            elif not ser.is_open:
+                append_to_gui("Error: Serial port is closed.")
+            else:
                 try:
                     ser.write((command + '\n').encode('utf-8'))
-                    append_to_gui(f">>> {command}")  # Show command in output area
+                    append_to_gui(f">>> {command}")
                 except Exception as e:
                     append_to_gui(f"Error sending command: {e}")
-            else:
-                append_to_gui("Serial port not open.")
-            command_entry.delete(0, tk.END)  # Clear entry after sending
+            command_entry.delete(0, tk.END)
 
     send_button = tk.Button(command_frame, text="Send", command=send_command)
     send_button.pack(side=tk.LEFT)
     command_entry.bind("<Return>", lambda event: send_command())
-
 
 def append_to_gui(line):
     if text_widget:
@@ -102,8 +101,6 @@ def append_to_gui(line):
         text_widget.see(tk.END)
 
 def exit_cleanly():
-    global exit_program
-    exit_program = True
     try:
         if ser and ser.is_open:
             ser.close()
@@ -111,7 +108,6 @@ def exit_cleanly():
     except Exception as e:
         print(f"Error closing serial port: {e}")
     
-    # Close the tkinter GUI if it's open
     try:
         if gui_root:
             gui_root.quit()
@@ -120,36 +116,44 @@ def exit_cleanly():
     except:
         pass
 
-    # Exit the entire program forcefully
     os._exit(0)
 
-def get_serial_lines(port, baudrate=115200):
+def get_serial_lines(port, baudrate=115200, retry_delay=0.2):
     global ser
-    ser = serial.Serial(port, baudrate, timeout=1)
-    print(f"Connected to {port} at {baudrate} baud.")
-
-    # Start writer thread
-
     while not exit_event.is_set():
+        try:
+            if not ser or not ser.is_open:
+                ser = serial.Serial(port, baudrate, timeout=1)
+                append_to_gui(f"Connected to {port} at {baudrate} baud.")
+        except serial.SerialException as e:
+            append_to_gui(f"Serial error: {e}")
+            append_to_gui(" Attempting to reconnect...")
+            time.sleep(retry_delay)
+            continue
+
         try:
             if ser.in_waiting:
                 line = ser.readline().decode('utf-8').strip()
                 if line:
                     yield line
+            else:
+                yield None  # Yield None when no data is available
         except Exception as e:
-            print(f"Serial error: {e}")
-            break
-
+            append_to_gui(f"Serial exception: {e}")
+            try:
+                ser.close()
+            except:
+                pass
+            yield None
+            time.sleep(retry_delay)
 
 def save_raw_line_to_csv(line, filename):
     parts = [p.strip() for p in line.split(',')]
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # millisecond precision
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([timestamp] + parts)
 
-
-# Extract specific fields to plot
 def parse_line(line):
     try:
         parts = [p.strip() for p in line.split(',')]
@@ -162,7 +166,7 @@ def parse_line(line):
                 data[key] = value
                 i += 2
             except ValueError:
-                i += 1  # skip malformed
+                i += 1
         return {
             "T1R": data.get("T1R"),
             "T2R": data.get("T2R"),
@@ -181,73 +185,66 @@ def update_plot(frame):
         exit_cleanly()
         return
 
-    if not hasattr(update_plot, "data_gen"):
-        port = select_serial_port()
-        filename = get_filename()
-        update_plot.filename = filename
-        update_plot.data_gen = get_serial_lines(port)
-
-        # Create file if it doesn't exist, and write header
-        if not os.path.exists(filename):
-            with open(filename, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["Timestamp", "Raw Data..."])  # Optional header
-
     try:
         line = next(update_plot.data_gen)
-        append_to_gui(line)
 
-        save_raw_line_to_csv(line, update_plot.filename)
+        now = datetime.now()
 
-        # Parse values to plot
-        parsed = parse_line(line)
-        if parsed:
-            now = datetime.now()
-            time_index.append(now)
-            t1r_list.append(parsed["T1R"])
-            t2r_list.append(parsed["T2R"])
-            p1_list.append(parsed["P1"])
-            p2_list.append(parsed["P2"])
-            IgR_list.append(parsed["IgR"])
-            SR_list.append((-144+parsed["SR"])/6)
+        if line:
+            append_to_gui(line)
+            save_raw_line_to_csv(line, update_plot.filename)
 
-            # Trim lists
-            time_index[:] = time_index[-MAX_POINTS:]
-            t1r_list[:] = t1r_list[-MAX_POINTS:]
-            t2r_list[:] = t2r_list[-MAX_POINTS:]
-            p1_list[:] = p1_list[-MAX_POINTS:]
-            p2_list[:] = p2_list[-MAX_POINTS:]
-            IgR_list[:] = IgR_list[-MAX_POINTS:]
-            SR_list[:] = SR_list[-MAX_POINTS:]
+            parsed = parse_line(line)
+        else:
+            parsed = None
 
-            # Plotting
-            ax1.clear()
-            ax2.clear()
+        # Always update time
+        time_index.append(now)
 
-            ax1.plot(time_index, t1r_list, label="T1R", color='red')
-            ax1.plot(time_index, t2r_list, label="T2R", color='orange')
-            ax1.set_ylabel("Temperature (C)")
-            ax1.legend()
-            ax1.grid(True)
+        # If data available, append it. If not, append None (for gaps)
+        t1r_list.append(parsed["T1R"] if parsed else None)
+        t2r_list.append(parsed["T2R"] if parsed else None)
+        p1_list.append(parsed["P1"] if parsed else None)
+        p2_list.append(parsed["P2"] if parsed else None)
+        IgR_list.append(parsed["IgR"] if parsed else None)
+        SR_list.append(((-144 + parsed["SR"]) / 6) if parsed and parsed["SR"] is not None else None)
 
-            ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
-            ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
-            ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
-            ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
-            ax2.set_ylabel("Pressure")
-            ax2.set_xlabel("Time")
-            ax2.legend()
-            ax2.grid(True)
+        # Trim lists
+        time_index[:] = time_index[-MAX_POINTS:]
+        t1r_list[:] = t1r_list[-MAX_POINTS:]
+        t2r_list[:] = t2r_list[-MAX_POINTS:]
+        p1_list[:] = p1_list[-MAX_POINTS:]
+        p2_list[:] = p2_list[-MAX_POINTS:]
+        IgR_list[:] = IgR_list[-MAX_POINTS:]
+        SR_list[:] = SR_list[-MAX_POINTS:]
 
-            for ax in (ax1, ax2):
-                ax.tick_params(axis='x', rotation=45)
+        # Plotting
+        ax1.clear()
+        ax2.clear()
+
+        ax1.plot(time_index, t1r_list, label="T1R", color='red')
+        ax1.plot(time_index, t2r_list, label="T2R", color='orange')
+        ax1.set_ylabel("Temperature (C)")
+        ax1.legend()
+        ax1.grid(True)
+
+        ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
+        ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
+        ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
+        ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
+        ax2.set_ylabel("Pressure")
+        ax2.set_xlabel("Time")
+        ax2.legend()
+        ax2.grid(True)
+
+        for ax in (ax1, ax2):
+            ax.tick_params(axis='x', rotation=45)
 
     except StopIteration:
-        print("No more data.")
+        append_to_gui("Serial generator ended.")
     except Exception as e:
-        print(f"Update error: {e}")
-        if ser and ser.is_open:
-            ser.close()
+        append_to_gui(f"Update error: {e}")
+
 
 def signal_handler(sig, frame):
     print("Keyboard interrupt received. Exiting...")
@@ -258,6 +255,16 @@ def signal_handler(sig, frame):
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
 ani = animation.FuncAnimation(fig, update_plot, interval=200, cache_frame_data=False)
 plt.tight_layout()
+
+# Step 1: Select serial port and filename BEFORE setting up GUI and animation
+port = select_serial_port()
+filename = get_filename()
+
+# Step 2: Initialize serial generator
+update_plot.filename = filename
+update_plot.data_gen = get_serial_lines(port)
+
+# Step 3: Setup GUI and run
 setup_gui()
 signal.signal(signal.SIGINT, signal_handler)
 plt.show()
