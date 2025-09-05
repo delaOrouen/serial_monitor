@@ -87,7 +87,7 @@ def setup_gui():
             else:
                 with serial_lock:
                     try:
-                        ser.write((command + '\n').encode('utf-8'))
+                        ser.write((command + '\n').encode('utf-8')) #TODO instead of writing immediately, add to a queue
                         append_to_gui(f">>> {command}")
                     except Exception as e:
                         append_to_gui(f"Error sending command: {e}")
@@ -122,11 +122,11 @@ def serial_reader_thread():
     global ser
     while not exit_event.is_set():
         try:
-            if ser and ser.in_waiting:
+            if ser and ser.in_waiting: # instead of checking for serial input, check to serial commands in the queue
                 line = ser.readline().decode('utf-8').strip()
                 if line:
                     serial_queue.put(line)
-            else:
+            else: # TODO instead of sleeping, check the queue for serial commands
                 time.sleep(0.05)
         except Exception as e:
             append_to_gui(f"Serial read error: {e}")
@@ -222,7 +222,8 @@ def update_plot(frame):
 
     ax1.plot(time_index, t1r_list, label="T1R", color='red')
     ax1.plot(time_index, t2r_list, label="T2R", color='orange')
-    ax1.set_ylabel("Temperature (C)")
+    ax1.set_xlabel("Time")
+    ax1.set_ylabel("Temperature °C")
     ax1.legend()
     ax1.grid(True)
 
@@ -230,7 +231,7 @@ def update_plot(frame):
     ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
     ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
     ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
-    ax2.set_ylabel("Pressure")
+    ax2.set_ylabel("Pressure MPa")
     ax2.set_xlabel("Time")
     ax2.legend()
     ax2.grid(True)
