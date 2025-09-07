@@ -7,12 +7,14 @@ def process_line(line):
     match = re.match(r'\[(.*?)\]\s*(.*)', line)
     if match:
         timestamp = match.group(1)
+        timestamp = timestamp.strip()
         rest = match.group(2)
 
         # TODO here, using keys of interest, remove all white 
+        rest = rest.strip()
         rest = re.sub(r'\s*,\s*', ',', rest)
 
-        return f"{timestamp}, {rest}"
+        return f"{timestamp},{rest}"
     else:
         return line.strip()
 
@@ -32,11 +34,11 @@ def process_file(input_file):
             cleaned_line = process_line(line)
             outfile.write(cleaned_line + "\n")
 
-    print(f"[隨ｨ霆｢ Processed '{input_file}' 遶翫・'{output_file}'")
+    print(f"Processed '{input_file}' -> '{output_file}'")
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python parse_csv_timestamp.py <input.csv> or <file_list.txt>")
+        print("Usage: python parse_csv_timestamp.py <tera_term_log.csv> or <file_list.txt>")
         sys.exit(1)
 
     input_arg = sys.argv[1]
