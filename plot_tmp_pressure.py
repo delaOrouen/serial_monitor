@@ -1,5 +1,6 @@
 import sys
 import csv
+import Numpy
 import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 
@@ -53,35 +54,52 @@ data['T'] = [t / 1000.0 for t in data['T']]
 data['SR'] = [(t - 144)/6 for t in data['SR']]
 
 # --- Plotting ---
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(10, 10))
 fig.subplots_adjust(
     top=0.92,
-    bottom=0.42,  # enough space for text boxes
-    hspace=0.4    # spacing between subplot rows
+    bottom=0.1,  # enough space for text boxes
+    hspace=.6    # spacing between subplot rows
 )
 
 
 # Plot T1R and T2R
 line1, = ax1.plot(data['T'], data['T1R'], label='T1R', color='red')
 line2, = ax1.plot(data['T'], data['T2R'], label='T2R', color='orange')
+peaks, _ = find_peaks(data['T2R'])
 ax1.set_title('Temperature T1 and T2')
 ax1.set_xlabel('Time (s)')
 ax1.set_ylabel('Degrees C')
+ax1.set_ylim(15)
 ax1.legend()
 ax1.grid(True)
 
-# Plot P1 and P2
+# Plot Tank Pressure
 line3, = ax2.plot(data['T'], data['P1'], label='Tank P1', color='blue')
-line4, = ax2.plot(data['T'], data['P2'], label='Nozzle P2', color='green')
-line5, = ax2.plot(data['T'], data['IgR'], label='Ignitor 1=ON/0=OFF', color='brown')
-line6, = ax2.plot(data['T'], data['SR'], label='Solenoids 1=OPEN/0=CLOSED', color='grey')
-ax2.set_title('Tank and Nozzle Pressure')
+ax2.set_title('Tank Pressure')
 ax2.set_xlabel('Time (s)')
 ax2.set_ylabel('Pressure MPa')
 ax2.legend()
 ax2.grid(True)
 
+# Plot Nozzle Pressure
+line4, = ax3.plot(data['T'], data['P2'], label='Nozzle P2', color='green')
+ax3.set_title('Nozzle Pressure')
+ax3.set_xlabel('Time (s)')
+ax3.set_ylabel('Pressure MPa')
+ax3.legend()
+ax3.grid(True)
+
+# Plot Ignitor and Solenoid Signals
+line5, = ax4.plot(data['T'], data['IgR'], label='Ignitor 1=ON/0=OFF', color='brown')
+line6, = ax4.plot(data['T'], data['SR'], label='Solenoids 1=OPEN/0=CLOSED', color='grey')
+ax4.set_title('Ignitor and Valve Status')
+ax4.set_xlabel('Time (s)')
+ax4.set_ylabel('Signal Status')
+ax4.legend()
+ax4.grid(True)
+
 # --- TextBox Widgets for Axis Limits ---
+'''
 
 # Axes for TextBoxes
 ax_text_xmin = plt.axes([0.15, 0.26, 0.15, 0.04])
@@ -144,5 +162,6 @@ text_xmax.on_submit(update_axes)
 text_y1max.on_submit(update_axes)
 text_y2max.on_submit(update_axes)
 
+'''
 # --- Show the plot ---
 plt.show()
