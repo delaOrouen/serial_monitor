@@ -147,18 +147,14 @@ def parse_line(line):
         while i < len(parts) - 1:
             key = parts[i]
             try:
-                value = float(parts[i + 1])
+                value = float(parts[i])
                 data[key] = value
-                i += 2
+                i += 1
             except ValueError:
                 i += 1
         return {
-            "T1R": data.get("T1R"),
-            "T2R": data.get("T2R"),
-            "P1": data.get("P1"),
-            "P2": data.get("P2"),
-            "IgR": data.get("IgR"),
-            "SR": data.get("SR"),
+            # TODO delete lines and add 1 lines for temperature
+            "T": data.get("T"),
         }
     except Exception as e:
         print(f"Parse error: {e}")
@@ -183,12 +179,7 @@ def update_plot(frame):
 
             if parsed:
                 update_plot.last_data = {
-                    "T1R": parsed["T1R"],
-                    "T2R": parsed["T2R"],
-                    "P1": parsed["P1"],
-                    "P2": parsed["P2"],
-                    "IgR": parsed["IgR"],
-                    "SR": ((-144 + parsed["SR"]) / 6) if parsed["SR"] is not None else None
+                    "T": parsed["T"],
                 }
 
     except queue.Empty:
@@ -196,48 +187,21 @@ def update_plot(frame):
 
     data = getattr(update_plot, "last_data", None)
     if data:
-        t1r_list.append(data["T1R"])
-        t2r_list.append(data["T2R"])
-        p1_list.append(data["P1"])
-        p2_list.append(data["P2"])
-        IgR_list.append(data["IgR"])
-        SR_list.append(data["SR"])
+        t1r_list.append(data["T"])
     else:
         t1r_list.append(None)
-        t2r_list.append(None)
-        p1_list.append(None)
-        p2_list.append(None)
-        IgR_list.append(None)
-        SR_list.append(None)
 
     t1r_list[:] = t1r_list[-MAX_POINTS:]
-    t2r_list[:] = t2r_list[-MAX_POINTS:]
-    p1_list[:] = p1_list[-MAX_POINTS:]
-    p2_list[:] = p2_list[-MAX_POINTS:]
-    IgR_list[:] = IgR_list[-MAX_POINTS:]
-    SR_list[:] = SR_list[-MAX_POINTS:]
 
     ax1.clear()
-    ax2.clear()
 
+    # TODO update t1r_list to the correct list
     ax1.plot(time_index, t1r_list, label="T1R", color='red')
-    ax1.plot(time_index, t2r_list, label="T2R", color='orange')
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Temperature °C")
     ax1.legend()
     ax1.grid(True)
-
-    ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
-    ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
-    ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
-    ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
-    ax2.set_ylabel("Pressure MPa")
-    ax2.set_xlabel("Time")
-    ax2.legend()
-    ax2.grid(True)
-
-    for ax in (ax1, ax2):
-        ax.tick_params(axis='x', rotation=45)
+    ax1.tick_params(axis='x', rotation=45)
 
 def signal_handler(sig, frame):
     print("Keyboard interrupt received. Exiting...")
@@ -245,7 +209,7 @@ def signal_handler(sig, frame):
     exit_cleanly()
 
 # Set up plot
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+fig, ax1 = plt.subplots(1, 1, figsize=(10, 6))
 ani = animation.FuncAnimation(fig, update_plot, interval=200, cache_frame_data=False)
 plt.tight_layout()
 
