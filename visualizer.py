@@ -147,9 +147,9 @@ def parse_line(line):
         while i < len(parts) - 1:
             key = parts[i]
             try:
-                value = float(parts[i])
+                value = float(parts[i+1])
                 data[key] = value
-                i += 1
+                i += 2
             except ValueError:
                 i += 1
         return {
