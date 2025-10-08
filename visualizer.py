@@ -24,8 +24,8 @@ exit_event = threading.Event()
 time_index = []
 t1r_list = []
 t2r_list = []
-p1_list = []
-p2_list = []
+p1v_list = []
+p2v_list = []
 IgR_list = []
 SR_list = []
 MAX_POINTS = 500
@@ -155,8 +155,8 @@ def parse_line(line):
         return {
             "T1R": data.get("T1R"),
             "T2R": data.get("T2R"),
-            "P1": data.get("P1"),
-            "P2": data.get("P2"),
+            "P1V": data.get("P1V"),
+            "P2V": data.get("P2V"),
             "IgR": data.get("IgR"),
             "SR": data.get("SR"),
         }
@@ -185,8 +185,8 @@ def update_plot(frame):
                 update_plot.last_data = {
                     "T1R": parsed["T1R"],
                     "T2R": parsed["T2R"],
-                    "P1": parsed["P1"],
-                    "P2": parsed["P2"],
+                    "P1V": parsed["P1V"],
+                    "P2V": parsed["P2V"],
                     "IgR": parsed["IgR"],
                     "SR": ((-144 + parsed["SR"]) / 6) if parsed["SR"] is not None else None
                 }
@@ -198,22 +198,22 @@ def update_plot(frame):
     if data:
         t1r_list.append(data["T1R"])
         t2r_list.append(data["T2R"])
-        p1_list.append(data["P1"])
-        p2_list.append(data["P2"])
+        p2v_list.append((data["P1V"] - 0.038) / 1003.3 * 10370)
+        p1v_list.append((data["P2V"] - 1.890365) / 1003.3 * 2702)
         IgR_list.append(data["IgR"])
         SR_list.append(data["SR"])
     else:
         t1r_list.append(None)
         t2r_list.append(None)
-        p1_list.append(None)
-        p2_list.append(None)
+        p1v_list.append(None)
+        p2v_list.append(None)
         IgR_list.append(None)
         SR_list.append(None)
 
     t1r_list[:] = t1r_list[-MAX_POINTS:]
     t2r_list[:] = t2r_list[-MAX_POINTS:]
-    p1_list[:] = p1_list[-MAX_POINTS:]
-    p2_list[:] = p2_list[-MAX_POINTS:]
+    p1v_list[:] = p1v_list[-MAX_POINTS:]
+    p2v_list[:] = p2v_list[-MAX_POINTS:]
     IgR_list[:] = IgR_list[-MAX_POINTS:]
     SR_list[:] = SR_list[-MAX_POINTS:]
 
@@ -227,8 +227,8 @@ def update_plot(frame):
     ax1.legend()
     ax1.grid(True)
 
-    ax2.plot(time_index, p1_list, label="Tank Pressure P1", color='blue')
-    ax2.plot(time_index, p2_list, label="Nozzle Pressure P2", color='green')
+    ax2.plot(time_index, p1v_list, label="Tank Pressure P1", color='blue')
+    ax2.plot(time_index, p2v_list, label="Nozzle Pressure P2", color='green')
     ax2.plot(time_index, IgR_list, label="Ignitor 1=ON/0=OFF", color='brown')
     ax2.plot(time_index, SR_list, label="Valves 1=OPEN/0=CLOSED", color='grey')
     ax2.set_ylabel("Pressure MPa")
