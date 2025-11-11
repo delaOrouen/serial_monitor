@@ -24,7 +24,7 @@ exit_event = threading.Event()
 time_index = []
 angle_list = []
 speed_list = []
-MAX_POINTS = 1000
+MAX_POINTS = 100
 
 def get_filename():
     filename = input("Enter filename to save data (without extension): ").strip()
@@ -161,7 +161,7 @@ def update_plot(frame):
         exit_cleanly()
         return
 
-    now = datetime.now()
+    now = time.perf_counter() - start
     time_index.append(now)
     time_index[:] = time_index[-MAX_POINTS:]
 
@@ -182,7 +182,7 @@ def update_plot(frame):
 
     data = getattr(update_plot, "last_data", None)
     if data:
-        angle_list.append(data["T1R"])
+        angle_list.append(data["A"])
     else:
         angle_list.append(None)
 
@@ -221,6 +221,9 @@ def signal_handler(sig, frame):
     print("Keyboard interrupt received. Exiting...")
     exit_event.set()
     exit_cleanly()
+
+
+start = time.perf_counter
 
 # Set up plot
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
