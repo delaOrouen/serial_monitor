@@ -26,6 +26,18 @@ angle_list = []
 speed_list = []
 MAX_POINTS = 100
 
+YEAR = 25
+MONTH = 11
+PATCH = 0
+def print_version():
+    print()
+    print("********************************************************")
+    print("Starting up Alpha Throttling Valve Serial Serial Monitor")
+    print("version " + YEAR + "." + MONTH + "." + PATCH +"")
+    print("********************************************************")
+    print()
+
+
 def get_filename():
     filename = input("Enter filename to save data (without extension): ").strip()
     if not filename:
@@ -222,7 +234,7 @@ def signal_handler(sig, frame):
     exit_event.set()
     exit_cleanly()
 
-
+print_version()
 start = time.perf_counter
 
 # Set up plot
