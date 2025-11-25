@@ -1,11 +1,9 @@
 """
-File: alpha_tv_monitor.py
+File: pressure_offset_finder.py
 Author: Rouen de la O 
 Created: 2025-11-19
 Description:
-    This file provides GUI interfaces for interacting with the Alpha throttling valve. Two windows are created, one window includes an input
-    field for sending data serially and has an additional feild where read serial data is printed. The second window shows a live graph of
-    both the angular speed and angular position of the rotary encoder used in the Alpha throttling valve system.
+    This file provides GUI interfaces to facilitate finding the offset in the formula for calculating pressure using the ____ sensor. 
  
 © 2025 Letara株式会社. All rights reserved.
 # SPDX-License-Identifier: Proprietary
@@ -34,9 +32,9 @@ exit_event = threading.Event()
 
 # Plotting data
 time_index = []
-angle_list = []
-speed_list = []
-MAX_POINTS = 100
+p1_list = []
+p2_list = []
+MAX_POINTS = 500
 
 YEAR = 25
 MONTH = 11
@@ -44,11 +42,10 @@ PATCH = 0
 def print_version():
     print()
     print("********************************************************")
-    print("Starting up Alpha Throttling Valve Serial Serial Monitor")
+    print("Starting up Pressure Offset Finder")
     print("version " + YEAR + "." + MONTH + "." + PATCH +"")
     print("********************************************************")
     print()
-
 
 def get_filename():
     filename = input("Enter filename to save data (without extension): ").strip()
@@ -173,7 +170,8 @@ def parse_line(line):
             except ValueError:
                 i += 1
         return {
-            "A": data.get("A"),
+            "P1V": data.get("P1V"),
+            "P2V": data.get("P2V"),
         }
     except Exception as e:
         print(f"Parse error: {e}")
@@ -185,7 +183,7 @@ def update_plot(frame):
         exit_cleanly()
         return
 
-    now = time.perf_counter() - start
+    now = datetime.now()
     time_index.append(now)
     time_index[:] = time_index[-MAX_POINTS:]
 
@@ -198,7 +196,12 @@ def update_plot(frame):
 
             if parsed:
                 update_plot.last_data = {
-                    "A": parsed["A"],
+                    "T1R": parsed["T1R"],
+                    "T2R": parsed["T2R"],
+                    "P1": parsed["P1V"], # TODO apply a formula??
+                    "P2": parsed["P2V"], # TODO apply a formula
+                    "IgR": parsed["IgR"],
+                    "SR": ((-144 + parsed["SR"]) / 6) if parsed["SR"] is not None else None
                 }
 
     except queue.Empty:
@@ -206,39 +209,25 @@ def update_plot(frame):
 
     data = getattr(update_plot, "last_data", None)
     if data:
-        angle_list.append(data["A"])
+        p1_list.append(data["P1"])
+        p2_list.append(data["P2"])
     else:
-        angle_list.append(None)
+        p1_list.append(None)
+        p2_list.append(None)
 
-    if 1 < len(angle_list):
-        dt = time_index[-1] - time_index[-2]
-        dtheta = angle_list[-1] - angle_list[-2]
-        speed = dtheta /dt if dt > 0 else 0
-        speed_list.append(speed)
-    else:
-        speed_list.append(0)
-
-
-
-    angle_list[:] = angle_list[-MAX_POINTS:]
-    speed_list[:] = speed_list[-MAX_POINTS:]
+    p1_list[:] = p1_list[-MAX_POINTS:]
+    p2_list[:] = p2_list[-MAX_POINTS:]
 
     ax1.clear()
-    ax2.clear()
 
-    ax1.plot(time_index, angle_list, label="Angle", color='red')
+    ax1.plot(time_index, p1_list, label="T1R", color='red')
+    ax1.plot(time_index, p2_list, label="T2R", color='orange')
     ax1.set_xlabel("Time")
-    ax1.set_ylabel("Angle")
+    ax1.set_ylabel("Temperature °C")
     ax1.legend()
     ax1.grid(True)
 
-    ax2.plot(time_index, speed_list, label="Motor Speed", color='green')
-    ax2.set_ylabel("Angle / s")
-    ax2.set_xlabel("Time")
-    ax2.legend()
-    ax2.grid(True)
-
-    for ax in (ax1, ax2):
+    for ax in (ax1):
         ax.tick_params(axis='x', rotation=45)
 
 def signal_handler(sig, frame):
@@ -246,11 +235,11 @@ def signal_handler(sig, frame):
     exit_event.set()
     exit_cleanly()
 
+
 print_version()
-start = time.perf_counter
 
 # Set up plot
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+fig, (ax1) = plt.subplots(1, 1, figsize=(10, 6))
 ani = animation.FuncAnimation(fig, update_plot, interval=200, cache_frame_data=False)
 plt.tight_layout()
 
